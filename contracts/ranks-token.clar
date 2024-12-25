@@ -19,6 +19,20 @@
 (define-data-var contract-paused bool false)
 (define-data-var max-supply uint u1000000000000) ;; 1 billion tokens with 6 decimals
 (define-data-var treasury-address principal contract-owner)
+(define-data-var transfer-cooldown uint u300) ;; 5 minutes in seconds
+(define-map last-transfer-time principal uint)
+(define-map admin-proposals {action: (string-ascii 64), nonce: uint} 
+    {approvals: (list 10 principal), executed: bool})
+(define-data-var required-approvals uint u2)
+(define-data-var fee-percentage uint u25) ;; 0.25%
+(define-data-var fee-recipient principal contract-owner)
+(define-map vesting-schedules principal 
+    {total-amount: uint, released: uint, start-height: uint, cliff-blocks: uint, duration: uint})
+(define-map staking-positions principal 
+    {amount: uint, start-height: uint, locked-until: uint})
+(define-data-var recovery-delay uint u144) ;; 24 hours in blocks
+(define-map recovery-requests principal 
+    {requested-at: uint, new-owner: principal})
 
 ;; SIP-010 Trait Implementation
 (impl-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard.sip-010-trait)
@@ -199,4 +213,46 @@
     (ok (is-authorized-minter account)))
 
 (define-read-only (get-treasury)
-    (ok (var-get treasury-address))) 
+    (ok (var-get treasury-address)))
+
+;; Add batch transfer capability
+(define-public (batch-transfer (recipients (list 20 {to: principal, amount: uint})))
+    (begin
+        (asserts! (not (var-get contract-paused)) err-paused)
+        (fold check-and-transfer recipients (ok true))))
+
+;; Add transfer with expiry
+(define-public (transfer-with-expiry 
+    (amount uint) 
+    (recipient principal) 
+    (expires-at uint))
+    (begin
+        (asserts! (< block-height expires-at) (err u110))
+        ;; Rest of transfer logic
+    )) 
+
+;; Add proposal system
+(define-map proposals uint 
+    {description: (string-utf8 256), 
+     votes-for: uint,
+     votes-against: uint,
+     status: (string-ascii 12),
+     end-height: uint})
+
+;; Add vote delegation
+(define-map vote-delegation principal principal)
+
+;; Add detailed event logging
+(define-map transaction-history uint 
+    {tx-type: (string-ascii 12),
+     from: principal,
+     to: principal,
+     amount: uint,
+     memo: (optional (buff 34))})
+
+;; Add token metadata
+(define-data-var token-metadata {
+    description: (string-utf8 256),
+    image: (string-utf8 256),
+    external-url: (string-utf8 256)
+} {description: u"", image: u"", external-url: u""}) 
